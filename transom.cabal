@@ -20,6 +20,18 @@ common ghc-options
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints
 
+library
+  import:          base, ghc-options
+  hs-source-dirs:  src
+  exposed-modules: REYES.Sampler
+
+test-suite transom-test
+  import:         base
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Test.hs
+  build-depends:  hedgehog
+
 executable transom
   import:         base, ghc-options
   main-is:        Main.hs
