@@ -1,9 +1,13 @@
 module Main (main) where
 
 import Hedgehog (Group, checkParallel)
+import qualified REYES.SamplerTest (tests)
+import Test.DocTest (doctest)
 
 main :: IO ()
-main = runHedgehogTests
+main = do
+  runHedgehogTests
+  runDocTests
 
 runHedgehogTests :: IO ()
 runHedgehogTests = do
@@ -12,4 +16,18 @@ runHedgehogTests = do
   putStrLn "---- Finished Hedgehog Tests ----"
 
 hedgehogTests :: [Group]
-hedgehogTests = []
+hedgehogTests =
+  [REYES.SamplerTest.tests]
+
+runDocTests :: IO ()
+runDocTests = do
+  putStrLn "\n---- Running Doctests ----"
+  docTests
+  putStrLn "---- Finished Doctests ----"
+
+docTests :: IO ()
+docTests =
+  doctest
+    [ "-isrc",
+      "src/REYES/Sampler.hs"
+    ]

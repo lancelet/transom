@@ -1,5 +1,19 @@
+/** Kensler (2013)
+  *
+  * This file contains functions that are (slightly modified) from:
+  *
+  *   * Kensler, A (2013) Correlated Multi-Jittered Sampling. Pixar Technical
+  *     Memo, 13-01.
+  */
+
 #include <stdint.h>
 
+/** Permute function from Listing 3.
+  *
+  * @param i index into the permutation [0, l-1]
+  * @param l length of the permutation
+  * @param p permutation number (any value)
+  */
 unsigned permute(uint32_t i, uint32_t l, uint32_t p) {
   uint32_t w = l - 1;
   w |= w >> 1;

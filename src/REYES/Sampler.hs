@@ -7,74 +7,84 @@ import Data.Word (Word32)
 
 -- | Pseudorandom permutation function.
 --
--- This is Listing 3 from Kensler, 2013.
+-- The permutation function @'permute' index size pat@ chooses a random integer
+-- from the range @[0, size-1]@. @index@ specifies which integer to choose, such
+-- that each integer is chosen only once. @pat@ specifies which random pattern
+-- to draw from, such that each value of @pat@ should produce a different random
+-- sequence.
+--
+-- For example, we may compute a full random permutation of the sequence
+-- @[0,1,2,3,4]@ by drawing the permutation at each index as follows:
+--
+-- >>> let size = 5  -- 5 elements, 0 to 4
+-- >>> let pat = 0
+-- >>> (\i -> permute i size pat) <$> [0 .. size-1]
+-- [0,4,2,3,1]
+--
+-- Each @pat@ value selects a different permutation pattern:
+--
+-- >>> let pat = 1
+-- >>> (\i -> permute i size pat) <$> [0 .. size-1]
+-- [0,1,2,4,3]
+--
+-- This is Listing 3 from Kensler, 2013:
+--
+--   * Kensler, A (2013) Correlated Multi-Jittered Sampling. Pixar Technical
+--     Memo, 13-01.
 permute ::
-  -- | Index into the permutation.
+  -- | Index into the permutation. This must be a value in the range
+  --   @[0, size-1]@.
   Word32 ->
-  -- | Length of the permutation.
+  -- | Length or size of the permutation. How many elements it has.
   Word32 ->
-  -- | Permutation number.
+  -- | Pattern number. The instance of the permutation from which we are
+  --   drawing elements.
   Word32 ->
   -- | Permuted value.
   Word32
-permute !i !l !p =
-  let w1, w2, w3, w4, w5, w6, w :: Word32
-      -- uint32_t w = l - 1;
-      w1 = l - 1
-      -- w |= w >> 1;
-      w2 = w1 .|. (w1 `shiftR` 1)
-      -- w |= w >> 2;
-      w3 = w2 .|. (w2 `shiftR` 2)
-      -- w |= w >> 4;
-      w4 = w3 .|. (w3 `shiftR` 4)
-      -- w |= w >> 8;
-      w5 = w4 .|. (w4 `shiftR` 8)
-      -- w |= w >> 16;
-      w6 = w5 .|. (w5 `shiftR` 16)
-      w = w6
+permute !index !size !pat =
+  let orEq :: (Word32 -> Word32) -> Word32 -> Word32
+      orEq !f !x = x .|. f x
 
-      -- do {
-      go :: Word32 -> Word32
-      go !i1 =
-        let -- i ^= p;
-            i2 = i1 `xor` p
-            -- i *= 0xe170893d;
-            i3 = i2 * 0xe170893d
-            -- i ^= p >> 16;
-            i4 = i3 `xor` (p `shiftR` 16)
-            -- i ^= (i & w) >>  4;
-            i5 = i4 `xor` ((i4 .&. w) `shiftR` 4)
-            -- i ^= p >> 8;
-            i6 = i5 `xor` (p `shiftR` 8)
-            -- i *= 0x0929eb3f;
-            i7 = i6 * 0x0929eb3f
-            -- i ^= p >> 23;
-            i8 = i7 `xor` (p `shiftR` 23)
-            -- i ^= (i & w) >> 1;
-            i9 = i8 `xor` ((i8 .&. w) `shiftR` 1)
-            -- i *= 1 | p >> 27;
-            i10 = i9 * (1 .|. (p `shiftR` 27))
-            -- i *= 0x6935fa69;
-            i11 = i10 * 0x6935fa69
-            -- i ^= (i & w) >> 11;
-            i12 = i11 `xor` ((i11 .&. w) `shiftR` 11)
-            -- i *= 0x74dcb303;
-            i13 = i12 * 0x74dcb303
-            -- i ^= (i & w) >> 2;
-            i14 = i13 `xor` ((i13 .&. w) `shiftR` 2)
-            -- i *= 0x9e501cc3;
-            i15 = i14 * 0x9e501cc3
-            -- i ^= (i & w) >> 2;
-            i16 = i15 `xor` ((i15 .&. w) `shiftR` 2)
-            -- i *= 0xc860a3df;
-            i17 = i16 * 0xc860a3df
-            -- i &= w;
-            i18 = i17 .&. w
-            -- i ^= i >> 5;
-            i19 = i18 `xor` (i18 `shiftR` 5)
-         in -- } while (i >= l);
-            if i19 >= l then go i19 else i19
+      xorEq :: (Word32 -> Word32) -> Word32 -> Word32
+      xorEq !f !x = x `xor` f x
 
-      i' = go i
-   in -- return (i + p) % l;
-      (i' + p) `mod` l
+      -- flip (.) so that operations read in the same direction as the original
+      -- C code
+      (.>) :: (a -> b) -> (b -> c) -> a -> c
+      (.>) = flip (.)
+
+      w :: Word32
+      w =
+        orEq (`shiftR` 1)
+          .> orEq (`shiftR` 2)
+          .> orEq (`shiftR` 4)
+          .> orEq (`shiftR` 8)
+          .> orEq (`shiftR` 16)
+          $ size - 1
+
+      cycleWalk :: Word32 -> Word32
+      cycleWalk !q =
+        let r :: Word32
+            r =
+              xor pat
+                .> (*) 0xe170893d
+                .> xor (pat `shiftR` 16)
+                .> xorEq ((.&.) w .> (`shiftR` 4))
+                .> xor (pat `shiftR` 8)
+                .> (*) 0x0929eb3f
+                .> xor (pat `shiftR` 23)
+                .> xorEq ((.&.) w .> (`shiftR` 1))
+                .> (*) (1 .|. (pat `shiftR` 27))
+                .> (*) 0x6935fa69
+                .> xorEq ((.&.) w .> (`shiftR` 11))
+                .> (*) 0x74dcb303
+                .> xorEq ((.&.) w .> (`shiftR` 2))
+                .> (*) 0x9e501cc3
+                .> xorEq ((.&.) w .> (`shiftR` 2))
+                .> (*) 0xc860a3df
+                .> (.&.) w
+                .> xorEq (`shiftR` 5)
+                $ q
+         in if r >= size then cycleWalk r else r
+   in (cycleWalk index + pat) `mod` size
